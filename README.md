@@ -30,7 +30,7 @@ A Windows Forms application written in C# (.NET Framework 4.7.2) to collect, mon
 ## Getting Started
 
 1. **Configure PLC Connection**: Enter the IP address, Port, and Timeout of the PLC.
-2. **Setup Points**: Define the points (up to 10) you want to monitor by selecting the Device Type (D, W, M, ZR, SW, Sw, SW, SWswSw Sw, SW, SW, SW, SW, SW, SW, SW, SW, SW, SW, SW, SWswSw, Sw, etc.), start address, and word count.
+2. **Setup Points**: Define the points (up to 10) you want to monitor by selecting the Device Type (D, W, M, ZR, SW, etc.), start address, and word count.
 3. **Start Collection**: Click **Start** to begin polling and logging. Data is automatically saved in the output directory.
 4. **Playback History**: Go to the History tab, load a `.dat` binary file, and use the player controls to review past PLC states.
 
