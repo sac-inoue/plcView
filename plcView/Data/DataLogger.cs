@@ -7,7 +7,7 @@ using plcView.Config;
 
 namespace plcView.Data
 {
-    public class DataLogger
+    public class DataLogger : IDisposable
     {
         private readonly ProjectSettings _settings;
         private string _currentFilePath = "";
@@ -15,8 +15,12 @@ namespace plcView.Data
         private const long MaxFileSize = 100 * 1024 * 1024; // 100MB
         private int _fileSequence = 1;
 
+        // ストリーム保持用フィールド
+        private FileStream _activeFileStream = null;
+        private BinaryWriter _activeBinaryWriter = null;
+        private StreamWriter _activeStreamWriter = null;
+
         // 差分保存用の前回データキャッシュ
-        // キー: ポイントのNo、値: 読み出したワードデータの配列(ushort[])
         private readonly Dictionary<int, ushort[]> _lastDataCache = new Dictionary<int, ushort[]>();
         private DateTime _lastWriteTime = DateTime.MinValue;
         private readonly TimeSpan _heartbeatInterval = TimeSpan.FromMinutes(10); // 10分ハートビート
@@ -29,8 +33,6 @@ namespace plcView.Data
         /// <summary>
         /// 1回分の収集データを保存します。差分判定や容量分割を自動で行います。
         /// </summary>
-        /// <param name="timestamp">収集時刻</param>
-        /// <param name="data">Noごとの読出しデータ（ushort配列）</param>
         public void WriteData(DateTime timestamp, Dictionary<int, ushort[]> data)
         {
             if (string.IsNullOrEmpty(_settings.OutputFolderPath)) return;
@@ -41,7 +43,6 @@ namespace plcView.Data
 
             if (!hasChange && !forceHeartbeat && _lastWriteTime != DateTime.MinValue)
             {
-                // 変化がなく、かつハートビート周期にも達していない場合は保存をスキップ
                 return;
             }
 
@@ -69,9 +70,6 @@ namespace plcView.Data
             return !_settings.IsCsvMode;
         }
 
-        /// <summary>
-        /// 各ポイントデータが前回から変化したかチェックし、キャッシュを更新します。
-        /// </summary>
         private bool CheckChangeAndCache(Dictionary<int, ushort[]> currentData)
         {
             bool anyChange = false;
@@ -87,7 +85,6 @@ namespace plcView.Data
 
                 if (!_lastDataCache.TryGetValue(point.No, out ushort[] lastVal))
                 {
-                    // 初回は「変化あり」とみなしてキャッシュ登録
                     _lastDataCache[point.No] = (ushort[])currentVal.Clone();
                     anyChange = true;
                     continue;
@@ -100,8 +97,6 @@ namespace plcView.Data
                     continue;
                 }
 
-                // 差分（デッドバンド）チェック
-                // デッドバンドは現在簡易的に±0(完全一致)としているが、必要に応じてpointごとにしきい値を設定可能
                 bool pointChanged = false;
                 for (int i = 0; i < currentVal.Length; i++)
                 {
@@ -122,9 +117,28 @@ namespace plcView.Data
             return anyChange;
         }
 
-        /// <summary>
-        /// ファイルサイズが100MBを超えていないか確認し、超えていれば新規ファイルを作成します。
-        /// </summary>
+        private void CloseActiveStream()
+        {
+            if (_activeBinaryWriter != null)
+            {
+                try { _activeBinaryWriter.Flush(); } catch { }
+                try { _activeBinaryWriter.Close(); } catch { }
+                _activeBinaryWriter = null;
+            }
+            if (_activeStreamWriter != null)
+            {
+                try { _activeStreamWriter.Flush(); } catch { }
+                try { _activeStreamWriter.Close(); } catch { }
+                _activeStreamWriter = null;
+            }
+            if (_activeFileStream != null)
+            {
+                try { _activeFileStream.Flush(); } catch { }
+                try { _activeFileStream.Close(); } catch { }
+                _activeFileStream = null;
+            }
+        }
+
         private void CheckAndPrepareFile(DateTime timestamp)
         {
             if (!Directory.Exists(_settings.OutputFolderPath))
@@ -150,6 +164,8 @@ namespace plcView.Data
 
             if (needsNewFile)
             {
+                CloseActiveStream();
+
                 string ext = _settings.IsCsvMode ? "csv" : "dat";
                 string timeStr = timestamp.ToString("yyyyMMdd_HHmmss");
                 string projName = string.IsNullOrEmpty(_settings.ProjectName) ? "Project" : _settings.ProjectName;
@@ -157,16 +173,47 @@ namespace plcView.Data
                 string fileName = $"{timeStr}_{projName}_{_fileSequence:D3}.{ext}";
                 _currentFilePath = Path.Combine(_settings.OutputFolderPath, fileName);
 
-                // CSVの場合は初回ヘッダーを書き込み
-                if (_settings.IsCsvMode && !File.Exists(_currentFilePath))
+                bool isNewFile = !File.Exists(_currentFilePath);
+
+                // ストリームの新規オープン
+                _activeFileStream = new FileStream(_currentFilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                if (_settings.IsCsvMode)
                 {
-                    WriteHeader();
+                    _activeStreamWriter = new StreamWriter(_activeFileStream, Encoding.UTF8);
+                    if (isNewFile)
+                    {
+                        WriteHeader();
+                    }
+                }
+                else
+                {
+                    _activeBinaryWriter = new BinaryWriter(_activeFileStream);
+                }
+            }
+            else if (_activeFileStream == null)
+            {
+                // 既存ファイルがあり、かつストリームがまだ開かれていない場合
+                bool isNewFile = !File.Exists(_currentFilePath);
+                _activeFileStream = new FileStream(_currentFilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                if (_settings.IsCsvMode)
+                {
+                    _activeStreamWriter = new StreamWriter(_activeFileStream, Encoding.UTF8);
+                    if (isNewFile)
+                    {
+                        WriteHeader();
+                    }
+                }
+                else
+                {
+                    _activeBinaryWriter = new BinaryWriter(_activeFileStream);
                 }
             }
         }
 
         private void WriteHeader()
         {
+            if (_activeStreamWriter == null) return;
+
             var sb = new StringBuilder();
             sb.Append("Timestamp");
             foreach (var point in _settings.Points)
@@ -177,11 +224,14 @@ namespace plcView.Data
                     sb.Append($",Pt{point.No}_{point.DeviceType}{point.StartAddress}+{i}");
                 }
             }
-            File.WriteAllText(_currentFilePath, sb.ToString() + Environment.NewLine, Encoding.UTF8);
+            _activeStreamWriter.WriteLine(sb.ToString());
+            _activeStreamWriter.Flush();
         }
 
         private void WriteCsvLine(DateTime timestamp, Dictionary<int, ushort[]> data)
         {
+            if (_activeStreamWriter == null) return;
+
             var sb = new StringBuilder();
             sb.Append(timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
@@ -198,7 +248,6 @@ namespace plcView.Data
                 }
                 else
                 {
-                    // データが取得できなかったポイントは空埋め
                     for (int i = 0; i < point.Size; i++)
                     {
                         sb.Append(",");
@@ -206,35 +255,56 @@ namespace plcView.Data
                 }
             }
 
-            File.AppendAllText(_currentFilePath, sb.ToString() + Environment.NewLine, Encoding.UTF8);
+            _activeStreamWriter.WriteLine(sb.ToString());
+            _activeStreamWriter.Flush();
         }
 
         private void WriteBinaryBlock(DateTime timestamp, Dictionary<int, ushort[]> data)
         {
-            // バイナリフォーマット設計:
-            // [8バイト: DateTime(Ticks)] 
+            if (_activeBinaryWriter == null) return;
+
+            // バイナリフォーマット設計 (改善版):
+            // [8バイト: DateTime(Ticks)]
+            // [2バイト: 有効ポイント数 (activePointCount)]  <- 指摘による境界破損バグ防止のため追加
             // 続く各有効ポイント: 
             //   [2バイト: ポイントNo] 
             //   [2バイト: データサイズ(ワード数)] 
             //   [N*2バイト: ushortデータ]
-            using (var fs = new FileStream(_currentFilePath, FileMode.Append, FileAccess.Write, FileShare.Read))
-            using (var bw = new BinaryWriter(fs))
+            
+            _activeBinaryWriter.Write(timestamp.Ticks);
+
+            // 有効なポイント数をカウントして書き込む
+            short activePointCount = 0;
+            foreach (var point in _settings.Points)
             {
-                bw.Write(timestamp.Ticks);
-                
-                foreach (var point in _settings.Points)
+                if (point.Enabled && data.ContainsKey(point.No))
                 {
-                    if (!point.Enabled) continue;
-                    if (data.TryGetValue(point.No, out ushort[] values))
+                    activePointCount++;
+                }
+            }
+            _activeBinaryWriter.Write(activePointCount);
+
+            foreach (var point in _settings.Points)
+            {
+                if (!point.Enabled) continue;
+                if (data.TryGetValue(point.No, out ushort[] values))
+                {
+                    _activeBinaryWriter.Write((short)point.No);
+                    _activeBinaryWriter.Write((short)values.Length);
+                    foreach (var val in values)
                     {
-                        bw.Write((short)point.No);
-                        bw.Write((short)values.Length);
-                        foreach (var val in values)
-                        {
-                            bw.Write(val);
-                        }
+                        _activeBinaryWriter.Write(val);
                     }
                 }
+            }
+            _activeBinaryWriter.Flush();
+        }
+
+        public void Dispose()
+        {
+            lock (_fileLock)
+            {
+                CloseActiveStream();
             }
         }
     }

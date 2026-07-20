@@ -145,7 +145,20 @@ namespace plcView.Config
                 switch (ch)
                 {
                     case '"':
-                        quoted = !quoted;
+                        // 直前の文字が奇数個のバックスラッシュであるかを確認してエスケープ判定
+                        bool isEscaped = false;
+                        int backslashCount = 0;
+                        for (int j = i - 1; j >= 0; j--)
+                        {
+                            if (json[j] == '\\') backslashCount++;
+                            else break;
+                        }
+                        if (backslashCount % 2 != 0) isEscaped = true;
+
+                        if (!isEscaped)
+                        {
+                            quoted = !quoted;
+                        }
                         sb.Append(ch);
                         break;
                     case '{':

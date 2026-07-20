@@ -350,10 +350,11 @@ namespace plcView
                 }
             };
 
-            var logger = new DataLogger(snapshot);
-
+            DataLogger logger = null;
             try
             {
+                logger = new DataLogger(snapshot);
+
                 // 接続確立（自動リトライ付き）
                 await client.ConnectAsync(token);
                 if (token.IsCancellationRequested) return;
@@ -443,6 +444,10 @@ namespace plcView
             }
             finally
             {
+                if (logger != null)
+                {
+                    logger.Dispose();
+                }
                 client.Dispose();
                 UpdateStatusLabel("停止中", Color.LightGray);
                 
@@ -526,10 +531,17 @@ namespace plcView
 
         private void RenderGrid(DataGridView dgv, PointSetting point, ushort[] data, bool isByteUnit)
         {
-            // 現在の選択セルなどを記憶
             int scrollRow = dgv.FirstDisplayedScrollingRowIndex;
             
-            dgv.Rows.Clear();
+            int targetRowCount = isByteUnit ? data.Length * 2 : data.Length;
+            if (dgv.RowCount != targetRowCount)
+            {
+                dgv.Rows.Clear();
+                if (targetRowCount > 0)
+                {
+                    dgv.Rows.Add(targetRowCount);
+                }
+            }
 
             DeviceConverter.TryParse(point.DeviceType, point.StartAddress, out _, out int startAddressNum);
 
@@ -543,9 +555,9 @@ namespace plcView
                     byte highByte = (byte)((wordVal >> 8) & 0xFF);
 
                     // Low Byte
-                    AddByteRow(dgv, point.DeviceType, startAddressNum, i, "L", lowByte);
+                    UpdateByteRow(dgv, point.DeviceType, startAddressNum, i, "L", lowByte, i * 2);
                     // High Byte
-                    AddByteRow(dgv, point.DeviceType, startAddressNum, i, "H", highByte);
+                    UpdateByteRow(dgv, point.DeviceType, startAddressNum, i, "H", highByte, i * 2 + 1);
                 }
             }
             else
@@ -561,7 +573,6 @@ namespace plcView
                     string valHexStr = $"0x{val:X4}";
                     string valBinStr = Convert.ToString(val, 2).PadLeft(16, '0');
 
-                    // 32ビット解釈 (DWORD/Float) - 連続する2ワードがある場合
                     string val32Str = "";
                     if (i + 1 < data.Length)
                     {
@@ -570,10 +581,15 @@ namespace plcView
                         val32Str = $"{dwordVal} / {floatVal:F3}";
                     }
 
-                    // ASCII解釈 (2文字)
                     string asciiStr = GetAsciiString(val);
 
-                    dgv.Rows.Add(addressStr, val10Str, valHexStr, valBinStr, val32Str, asciiStr);
+                    DataGridViewRow row = dgv.Rows[i];
+                    row.Cells[0].Value = addressStr;
+                    row.Cells[1].Value = val10Str;
+                    row.Cells[2].Value = valHexStr;
+                    row.Cells[3].Value = valBinStr;
+                    row.Cells[4].Value = val32Str;
+                    row.Cells[5].Value = asciiStr;
                 }
             }
 
@@ -583,7 +599,7 @@ namespace plcView
             }
         }
 
-        private void AddByteRow(DataGridView dgv, string deviceType, int startAddr, int offset, string suffix, byte val)
+        private void UpdateByteRow(DataGridView dgv, string deviceType, int startAddr, int offset, string suffix, byte val, int rowIndex)
         {
             int addr = startAddr + offset;
             string addressStr = $"{deviceType}{GetAddressDisplayString(deviceType, addr)}-{suffix}";
@@ -593,7 +609,13 @@ namespace plcView
             string val32Str = "-";
             string asciiStr = (val >= 32 && val <= 126) ? ((char)val).ToString() : ".";
 
-            dgv.Rows.Add(addressStr, val10Str, valHexStr, valBinStr, val32Str, asciiStr);
+            DataGridViewRow row = dgv.Rows[rowIndex];
+            row.Cells[0].Value = addressStr;
+            row.Cells[1].Value = val10Str;
+            row.Cells[2].Value = valHexStr;
+            row.Cells[3].Value = valBinStr;
+            row.Cells[4].Value = val32Str;
+            row.Cells[5].Value = asciiStr;
         }
 
         private string GetAddressDisplayString(string deviceType, int address)
