@@ -317,7 +317,7 @@ namespace plcView
         {
             if (InvokeRequired)
             {
-                Invoke(new Action(() => UpdateStatusLabel(text, color)));
+                SafeInvoke(new Action(() => UpdateStatusLabel(text, color)));
                 return;
             }
             lblStatus.Text = text;
@@ -409,7 +409,7 @@ namespace plcView
                         }
 
                         // UIのグリッド更新（非同期で促す）
-                        BeginInvoke(new Action(UpdateMonitorView));
+                        SafeBeginInvoke(new Action(UpdateMonitorView));
                     }
 
                     // 待機時間計算
@@ -451,7 +451,7 @@ namespace plcView
                 client.Dispose();
                 UpdateStatusLabel("停止中", Color.LightGray);
                 
-                BeginInvoke(new Action(() =>
+                SafeBeginInvoke(new Action(() =>
                 {
                     btnStart.Enabled = true;
                     btnStop.Enabled = false;
@@ -464,7 +464,7 @@ namespace plcView
         {
             if (InvokeRequired)
             {
-                BeginInvoke(new Action<string>(AppendLog), message);
+                SafeBeginInvoke(new Action(() => AppendLog(message)));
                 return;
             }
 
@@ -543,7 +543,12 @@ namespace plcView
                 }
             }
 
-            DeviceConverter.TryParse(point.DeviceType, point.StartAddress, out _, out int startAddressNum);
+            if (!DeviceConverter.TryParse(point.DeviceType, point.StartAddress, out _, out int startAddressNum))
+            {
+                dgv.Rows.Clear();
+                dgv.Rows.Add("Error: 不正なアドレス設定", "", "", "", "", "");
+                return;
+            }
 
             if (isByteUnit)
             {
@@ -759,6 +764,28 @@ namespace plcView
                 trackHistory.Value = 0;
                 DisplayHistoryFrame(0);
             }
+        }
+
+        private void SafeInvoke(Action action)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                Invoke(action);
+            }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+        }
+
+        private void SafeBeginInvoke(Action action)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke(action);
+            }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
         }
 
         #endregion

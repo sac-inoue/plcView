@@ -169,6 +169,10 @@ namespace plcView.Data
                 string ext = _settings.IsCsvMode ? "csv" : "dat";
                 string timeStr = timestamp.ToString("yyyyMMdd_HHmmss");
                 string projName = string.IsNullOrEmpty(_settings.ProjectName) ? "Project" : _settings.ProjectName;
+                foreach (char c in Path.GetInvalidFileNameChars())
+                {
+                    projName = projName.Replace(c.ToString(), "_");
+                }
                 
                 string fileName = $"{timeStr}_{projName}_{_fileSequence:D3}.{ext}";
                 _currentFilePath = Path.Combine(_settings.OutputFolderPath, fileName);

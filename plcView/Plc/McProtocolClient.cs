@@ -58,6 +58,12 @@ namespace plcView.Plc
                     }
                     else
                     {
+                        CloseConnection();
+                        try
+                        {
+                            await connectTask;
+                        }
+                        catch { }
                         throw new TimeoutException("PLC connection attempt timed out.");
                     }
                 }
@@ -235,11 +241,20 @@ namespace plcView.Plc
 
         public void Dispose()
         {
-            if (!_isDisposed)
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_isDisposed) return;
+
+            if (disposing)
             {
                 CloseConnection();
-                _isDisposed = true;
             }
+
+            _isDisposed = true;
         }
     }
 }
