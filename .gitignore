@@ -1,0 +1,32 @@
+# Visual Studio / C#
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Re]leases/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+[Log]/
+log/
+logs/
+
+# Visual Studio 2015/2017/2019/2022 cache/options
+.vs/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# App data
+*.dat
+*.csv
+*.json
+!_docs/**/*.json
+!*.config
+!appsettings.json
