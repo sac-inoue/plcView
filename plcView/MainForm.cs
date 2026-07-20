@@ -39,8 +39,21 @@ namespace plcView
             InitMonitorTab();
             InitHistoryTab();
             
+            // DataGridViewのチラつき防止（ダブルバッファリング有効化）
+            EnableDoubleBuffering(dgvPoints);
+            EnableDoubleBuffering(dgvMonitor);
+            EnableDoubleBuffering(dgvHistory);
+
             LoadSettingsToUI();
             UpdateStatusLabel("停止中", Color.LightGray);
+        }
+
+        private void EnableDoubleBuffering(DataGridView dgv)
+        {
+            var dgvType = dgv.GetType();
+            var pi = dgvType.GetProperty("DoubleBuffered", 
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            pi?.SetValue(dgv, true, null);
         }
 
         #region 初期化
@@ -161,6 +174,7 @@ namespace plcView
             numPort.Value = _settings.PlcSetting.Port;
             numTimeout.Value = _settings.PlcSetting.TimeoutMs;
             chkDebugMode.Checked = _settings.IsDebugMode;
+            chkCsvMode.Checked = _settings.IsCsvMode;
             txtOutputFolder.Text = _settings.OutputFolderPath;
 
             // 収集間隔の選択
@@ -185,6 +199,7 @@ namespace plcView
             _settings.PlcSetting.Port = (int)numPort.Value;
             _settings.PlcSetting.TimeoutMs = (int)numTimeout.Value;
             _settings.IsDebugMode = chkDebugMode.Checked;
+            _settings.IsCsvMode = chkCsvMode.Checked;
             _settings.OutputFolderPath = txtOutputFolder.Text.Trim();
             
             if (cmbInterval.SelectedItem != null)
@@ -311,28 +326,31 @@ namespace plcView
 
         private async Task CollectLoopAsync(CancellationToken token)
         {
+            // 収集実行中のスレッド競合を防ぐため設定のスナップショットを使用
+            var snapshot = _settings.Clone();
+
             var client = new McProtocolClient(
-                _settings.PlcSetting.IpAddress, 
-                _settings.PlcSetting.Port, 
-                _settings.PlcSetting.TimeoutMs
+                snapshot.PlcSetting.IpAddress, 
+                snapshot.PlcSetting.Port, 
+                snapshot.PlcSetting.TimeoutMs
             );
 
             client.OnLogMessage += (msg) =>
             {
                 // デバッグログが有効、または通常の接続情報などのみUIにログ出力
-                if (_settings.IsDebugMode || msg.Contains("[INFO]"))
+                if (snapshot.IsDebugMode || msg.Contains("[INFO]"))
                 {
                     AppendLog(msg);
                 }
                 
                 // デバッグログ書き出し
-                if (_settings.IsDebugMode)
+                if (snapshot.IsDebugMode)
                 {
                     WriteDebugLog(msg);
                 }
             };
 
-            var logger = new DataLogger(_settings);
+            var logger = new DataLogger(snapshot);
 
             try
             {
@@ -347,7 +365,7 @@ namespace plcView
                     var loopStartTime = DateTime.Now;
                     var sampleData = new Dictionary<int, ushort[]>();
 
-                    foreach (var point in _settings.Points)
+                    foreach (var point in snapshot.Points)
                     {
                         if (token.IsCancellationRequested) break;
                         if (!point.Enabled) continue;
@@ -394,7 +412,7 @@ namespace plcView
                     }
 
                     // 待機時間計算
-                    int waitMs = _settings.IntervalMs;
+                    int waitMs = snapshot.IntervalMs;
                     if (waitMs <= 0)
                     {
                         // 0ms設定時は、CPU張り付き防止に1msウェイトを入れる

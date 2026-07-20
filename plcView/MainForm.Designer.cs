@@ -33,6 +33,7 @@ namespace plcView
             this.btnNewProject = new System.Windows.Forms.Button();
             this.groupBoxPlc = new System.Windows.Forms.GroupBox();
             this.chkDebugMode = new System.Windows.Forms.CheckBox();
+            this.chkCsvMode = new System.Windows.Forms.CheckBox();
             this.btnBrowseFolder = new System.Windows.Forms.Button();
             this.txtOutputFolder = new System.Windows.Forms.TextBox();
             this.label5 = new System.Windows.Forms.Label();
@@ -248,6 +249,7 @@ namespace plcView
             // 
             this.groupBoxPlc.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBoxPlc.Controls.Add(this.chkCsvMode);
             this.groupBoxPlc.Controls.Add(this.chkDebugMode);
             this.groupBoxPlc.Controls.Add(this.btnBrowseFolder);
             this.groupBoxPlc.Controls.Add(this.txtOutputFolder);
@@ -276,6 +278,16 @@ namespace plcView
             this.chkDebugMode.TabIndex = 11;
             this.chkDebugMode.Text = "デバッグモード有効 (logフォルダ保存)";
             this.chkDebugMode.UseVisualStyleBackColor = true;
+            // 
+            // chkCsvMode
+            // 
+            this.chkCsvMode.AutoSize = true;
+            this.chkCsvMode.Location = new System.Drawing.Point(330, 190);
+            this.chkCsvMode.Name = "chkCsvMode";
+            this.chkCsvMode.Size = new System.Drawing.Size(130, 16);
+            this.chkCsvMode.TabIndex = 12;
+            this.chkCsvMode.Text = "CSV形式で保存する";
+            this.chkCsvMode.UseVisualStyleBackColor = true;
             // 
             // btnBrowseFolder
             // 
@@ -685,6 +697,7 @@ namespace plcView
         private System.Windows.Forms.TextBox txtOutputFolder;
         private System.Windows.Forms.Button btnBrowseFolder;
         private System.Windows.Forms.CheckBox chkDebugMode;
+        private System.Windows.Forms.CheckBox chkCsvMode;
         private System.Windows.Forms.GroupBox groupBoxProject;
         private System.Windows.Forms.Button btnNewProject;
         private System.Windows.Forms.Button btnOpenProject;

@@ -35,6 +35,9 @@ namespace plcView.Plc
             {
                 try
                 {
+                    // 新規接続試行の前に、古いTcpClientやNetworkStreamを確実に破棄してリークを防ぐ
+                    CloseConnection();
+
                     Log($"Connecting to PLC at {_ipAddress}:{_port}...");
                     _tcpClient = new TcpClient();
                     

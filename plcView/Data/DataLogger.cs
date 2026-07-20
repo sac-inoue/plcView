@@ -51,10 +51,7 @@ namespace plcView.Data
                 CheckAndPrepareFile(timestamp);
 
                 // 3. データ書き込み
-                bool isCsv = _settings.OutputFolderPath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) || 
-                             !IsBinaryMode(); // プロジェクトの拡張子設定か判定
-
-                if (isCsv)
+                if (_settings.IsCsvMode)
                 {
                     WriteCsvLine(timestamp, data);
                 }
@@ -69,8 +66,7 @@ namespace plcView.Data
 
         private bool IsBinaryMode()
         {
-            // 設定パスもしくは単純なプロジェクト情報から、拡張子がcsvでなければバイナリとする
-            return false; // デフォルトはバイナリ。設定で拡張可能に。
+            return !_settings.IsCsvMode;
         }
 
         /// <summary>
@@ -154,7 +150,7 @@ namespace plcView.Data
 
             if (needsNewFile)
             {
-                string ext = "dat"; // デフォルト拡張子
+                string ext = _settings.IsCsvMode ? "csv" : "dat";
                 string timeStr = timestamp.ToString("yyyyMMdd_HHmmss");
                 string projName = string.IsNullOrEmpty(_settings.ProjectName) ? "Project" : _settings.ProjectName;
                 
@@ -162,7 +158,7 @@ namespace plcView.Data
                 _currentFilePath = Path.Combine(_settings.OutputFolderPath, fileName);
 
                 // CSVの場合は初回ヘッダーを書き込み
-                if (ext == "csv" && !File.Exists(_currentFilePath))
+                if (_settings.IsCsvMode && !File.Exists(_currentFilePath))
                 {
                     WriteHeader();
                 }

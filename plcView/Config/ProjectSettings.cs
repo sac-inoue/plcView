@@ -35,6 +35,7 @@ namespace plcView.Config
         public PlcSetting PlcSetting { get; set; }
         public int IntervalMs { get; set; }         // 0:最速, 1000:1秒, etc.
         public bool IsDebugMode { get; set; }
+        public bool IsCsvMode { get; set; }         // true: CSVテキスト, false: バイナリ(dat)
         public string OutputFolderPath { get; set; }
         public List<PointSetting> Points { get; set; }
 
@@ -44,6 +45,7 @@ namespace plcView.Config
             PlcSetting = new PlcSetting();
             IntervalMs = 1000;
             IsDebugMode = false;
+            IsCsvMode = true; // デフォルトはCSV
             OutputFolderPath = "";
             Points = new List<PointSetting>();
             for (int i = 1; i <= 10; i++)
@@ -58,6 +60,43 @@ namespace plcView.Config
                     Size = 10
                 });
             }
+        }
+
+        /// <summary>
+        /// 設定をディープコピーします。
+        /// </summary>
+        public ProjectSettings Clone()
+        {
+            var clone = new ProjectSettings
+            {
+                ProjectName = this.ProjectName,
+                IntervalMs = this.IntervalMs,
+                IsDebugMode = this.IsDebugMode,
+                IsCsvMode = this.IsCsvMode,
+                OutputFolderPath = this.OutputFolderPath,
+                PlcSetting = new PlcSetting
+                {
+                    IpAddress = this.PlcSetting.IpAddress,
+                    Port = this.PlcSetting.Port,
+                    TimeoutMs = this.PlcSetting.TimeoutMs
+                },
+                Points = new List<PointSetting>()
+            };
+
+            foreach (var pt in this.Points)
+            {
+                clone.Points.Add(new PointSetting
+                {
+                    No = pt.No,
+                    Enabled = pt.Enabled,
+                    Name = pt.Name,
+                    DeviceType = pt.DeviceType,
+                    StartAddress = pt.StartAddress,
+                    Size = pt.Size
+                });
+            }
+
+            return clone;
         }
 
         /// <summary>
