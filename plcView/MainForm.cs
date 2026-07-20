@@ -90,7 +90,7 @@ namespace plcView
                 HeaderText = "デバイス",
                 Width = 80
             };
-            cmbCol.Items.AddRange("D", "W", "R", "ZR", "SD", "SW", "TN", "CN", "M", "X", "Y", "L", "F", "B", "SB");
+            cmbCol.Items.AddRange("D", "W", "R", "ZR", "SD", "SW", "SM", "TN", "TS", "TC", "CN", "CS", "CC", "M", "X", "Y", "L", "F", "V", "B", "SB", "S", "DX", "DY");
             dgvPoints.Columns.Add(cmbCol);
 
             dgvPoints.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "StartAddress", HeaderText = "開始アドレス", Width = 100 });
